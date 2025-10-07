@@ -442,7 +442,15 @@
             const response = await fetch(`${API_BASE_URL}/v32/command/state`);
             const state = await response.json();
             
+            // Always update the state, not just when empty
+            const hasChanges = JSON.stringify(MASTER_PLAN) !== JSON.stringify(state);
+            
             if (Object.keys(MASTER_PLAN).length === 0) {
+                console.log("Initial state loaded via polling");
+                MASTER_PLAN = state;
+                renderDashboard();
+            } else if (hasChanges) {
+                console.log("State changes detected, updating dashboard");
                 MASTER_PLAN = state;
                 renderDashboard();
             }

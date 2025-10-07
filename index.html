@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aegis V4 - UAF v32 Command Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root { 
+            --font-sans: 'Noto Sans KR', sans-serif; 
+            --bg-main: #0a0a0a; 
+            --bg-card: #141414; 
+            --border-color: #2a2a2a; 
+            --text-main: #f5f5f5; 
+            --text-muted: #a3a3a3; 
+        }
+        body { font-family: var(--font-sans); background-color: var(--bg-main); color: var(--text-main); }
+        .progress-bar>div { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .task-item { animation: fadeIn 0.3s ease-out; }
+        .connector-card { transition: all 0.3s ease; }
+        .connector-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+        .news-item { border-left: 3px solid #3b82f6; padding-left: 12px; margin-bottom: 12px; }
+        .filing-item { border-left: 3px solid #10b981; padding-left: 12px; margin-bottom: 12px; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); }
+        .modal-content { background-color: var(--bg-card); margin: 10% auto; padding: 30px; border: 1px solid var(--border-color); border-radius: 12px; width: 90%; max-width: 500px; }
+    </style>
+</head>
+<body class="p-4 sm:p-6 lg:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8 pb-4 border-b border-border-color">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-green-500">
+                    Operation Singularity
+                </h1>
+                <p class="text-base text-text-muted">UAF v32 통합 작전 현황 (Aegis V4)</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="connection-status" class="flex items-center gap-3 px-4 py-2 rounded-lg bg-red-900/50 text-red-400 text-sm font-medium shadow-md border border-red-700">
+                    <i data-lucide="wifi-off" class="w-4 h-4"></i>
+                    <span>DISCONNECTED</span>
+                </div>
+                <button onclick="showApiSettings()" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span>API 설정</span>
+                </button>
+                <button onclick="toggleConnectorsPanel()" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
+                    <i data-lucide="database" class="w-4 h-4"></i>
+                    <span>Data Connectors</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- API Settings Modal -->
+        <div id="api-modal" class="modal">
+            <div class="modal-content">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">API 서버 설정</h2>
+                    <button onclick="closeApiSettings()" class="text-gray-400 hover:text-white">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">API 서버 URL</label>
+                        <input type="text" id="api-url-input" placeholder="http://localhost:8000" 
+                            class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                        <p class="text-xs text-gray-500 mt-2">로컬 서버: http://localhost:8000</p>
+                    </div>
+                    <button onclick="saveApiUrl()" 
+                        class="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                        연결하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connectors Panel (Hidden by default) -->
+        <div id="connectors-panel" class="hidden mb-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- News Connector -->
+                <div class="connector-card bg-bg-card border border-gray-800 rounded-xl shadow-xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="newspaper" class="w-6 h-6 text-blue-500"></i>
+                            <h3 class="text-xl font-bold">News Connector</h3>
+                        </div>
+                        <span class="px-3 py-1 bg-blue-900/50 text-blue-400 text-xs font-semibold rounded-full">ACTIVE</span>
+                    </div>
+                    <p class="text-sm text-text-muted mb-4">NewsAPI + Google News RSS 통합</p>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Search Query</label>
+                            <input type="text" id="news-query" value="artificial intelligence" 
+                                class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-blue-500">
+                        </div>
+                        <button onclick="fetchNews()" 
+                            class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
+                            <i data-lucide="search" class="w-4 h-4 inline mr-2"></i>
+                            Search News
+                        </button>
+                    </div>
+                    
+                    <div id="news-results" class="mt-4 max-h-96 overflow-y-auto"></div>
+                </div>
+
+                <!-- EDGAR Connector -->
+                <div class="connector-card bg-bg-card border border-gray-800 rounded-xl shadow-xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="file-text" class="w-6 h-6 text-green-500"></i>
+                            <h3 class="text-xl font-bold">EDGAR Connector</h3>
+                        </div>
+                        <span class="px-3 py-1 bg-green-900/50 text-green-400 text-xs font-semibold rounded-full">ACTIVE</span>
+                    </div>
+                    <p class="text-sm text-text-muted mb-4">SEC EDGAR API 통합</p>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Company Ticker</label>
+                            <input type="text" id="edgar-ticker" value="AAPL" 
+                                class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-green-500">
+                        </div>
+                        <button onclick="fetchFilings()" 
+                            class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition">
+                            <i data-lucide="search" class="w-4 h-4 inline mr-2"></i>
+                            Search Filings
+                        </button>
+                    </div>
+                    
+                    <div id="edgar-results" class="mt-4 max-h-96 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <main id="dashboard-grid" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div id="loading-placeholder" class="col-span-1 lg:col-span-3 flex justify-center items-center h-64">
+                <div class="text-center">
+                    <i data-lucide="loader-2" class="w-12 h-12 animate-spin text-blue-500 mb-4 mx-auto"></i>
+                    <p class="text-text-muted">API 서버 설정이 필요합니다</p>
+                    <button onclick="showApiSettings()" class="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                        API 서버 설정
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    let API_BASE_URL = localStorage.getItem('api_base_url') || '';
+    let MASTER_PLAN = {};
+    let retryInterval = 2000;
+
+    const ICONS = {
+        PENDING: 'clock', IN_PROGRESS: 'activity', COMPLETED: 'check-square', BLOCKED: 'alert-triangle'
+    };
+    const STATUS_COLORS = {
+        PENDING: 'text-gray-500', IN_PROGRESS: 'text-blue-400', COMPLETED: 'text-green-400', BLOCKED: 'text-yellow-500'
+    };
+    const ACCENT_MAP = {
+        p1: { base: 'blue', gradient: 'from-blue-500/20 to-blue-700/20' },
+        p2: { base: 'green', gradient: 'from-green-500/20 to-green-700/20' },
+        p3: { base: 'orange', gradient: 'from-orange-500/20 to-orange-700/20' }
+    };
+
+    // API Settings
+    function showApiSettings() {
+        document.getElementById('api-modal').style.display = 'block';
+        document.getElementById('api-url-input').value = API_BASE_URL;
+        lucide.createIcons();
+    }
+
+    function closeApiSettings() {
+        document.getElementById('api-modal').style.display = 'none';
+    }
+
+    function saveApiUrl() {
+        const url = document.getElementById('api-url-input').value.trim();
+        if (!url) {
+            alert('API URL을 입력해주세요');
+            return;
+        }
+        API_BASE_URL = url;
+        localStorage.setItem('api_base_url', url);
+        closeApiSettings();
+        connectToStream();
+    }
+
+    // Toggle Connectors Panel
+    function toggleConnectorsPanel() {
+        const panel = document.getElementById('connectors-panel');
+        panel.classList.toggle('hidden');
+        lucide.createIcons();
+    }
+
+    // Fetch News
+    async function fetchNews() {
+        if (!API_BASE_URL) {
+            alert('API 서버를 먼저 설정해주세요');
+            showApiSettings();
+            return;
+        }
+
+        const query = document.getElementById('news-query').value;
+        const resultsDiv = document.getElementById('news-results');
+        
+        resultsDiv.innerHTML = '<div class="text-center py-4"><i data-lucide="loader-2" class="w-6 h-6 animate-spin text-blue-500 mx-auto"></i></div>';
+        lucide.createIcons();
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/v32/connectors/news/search?query=${encodeURIComponent(query)}&max_results=5`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                let html = '<div class="space-y-2">';
+                
+                for (const [source, articles] of Object.entries(data.results)) {
+                    articles.forEach(article => {
+                        html += `
+                            <div class="news-item bg-gray-900/50 p-3 rounded-lg">
+                                <div class="flex items-start justify-between mb-1">
+                                    <span class="text-xs font-semibold text-blue-400">${article.source}</span>
+                                    <span class="text-xs text-gray-500">${new Date(article.published_at).toLocaleDateString()}</span>
+                                </div>
+                                <h4 class="text-sm font-medium mb-1">${article.title}</h4>
+                                ${article.description ? `<p class="text-xs text-gray-400 mb-2">${article.description.substring(0, 100)}...</p>` : ''}
+                                <a href="${article.url}" target="_blank" class="text-xs text-blue-500 hover:underline">Read more →</a>
+                            </div>
+                        `;
+                    });
+                }
+                
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+            } else {
+                resultsDiv.innerHTML = '<p class="text-sm text-red-400">Failed to fetch news</p>';
+            }
+        } catch (error) {
+            resultsDiv.innerHTML = `<p class="text-sm text-red-400">Error: ${error.message}</p>`;
+        }
+        
+        lucide.createIcons();
+    }
+
+    // Fetch SEC Filings
+    async function fetchFilings() {
+        if (!API_BASE_URL) {
+            alert('API 서버를 먼저 설정해주세요');
+            showApiSettings();
+            return;
+        }
+
+        const ticker = document.getElementById('edgar-ticker').value;
+        const resultsDiv = document.getElementById('edgar-results');
+        
+        resultsDiv.innerHTML = '<div class="text-center py-4"><i data-lucide="loader-2" class="w-6 h-6 animate-spin text-green-500 mx-auto"></i></div>';
+        lucide.createIcons();
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/v32/connectors/edgar/company/${ticker}?max_results=5`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                let html = '<div class="space-y-2">';
+                
+                data.filings.forEach(filing => {
+                    html += `
+                        <div class="filing-item bg-gray-900/50 p-3 rounded-lg">
+                            <div class="flex items-start justify-between mb-1">
+                                <span class="text-xs font-semibold text-green-400">${filing.form_type}</span>
+                                <span class="text-xs text-gray-500">${filing.filing_date}</span>
+                            </div>
+                            <h4 class="text-sm font-medium mb-1">${filing.company_name}</h4>
+                            <p class="text-xs text-gray-400 mb-2">CIK: ${filing.cik}</p>
+                            <a href="${filing.file_url}" target="_blank" class="text-xs text-green-500 hover:underline">View filing →</a>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+            } else {
+                resultsDiv.innerHTML = '<p class="text-sm text-red-400">Failed to fetch filings</p>';
+            }
+        } catch (error) {
+            resultsDiv.innerHTML = `<p class="text-sm text-red-400">Error: ${error.message}</p>`;
+        }
+        
+        lucide.createIcons();
+    }
+
+    function Task({ id, name, progress, status }, accent) {
+        const colors = STATUS_COLORS[status];
+        const icon = ICONS[status];
+        const progressColor = `bg-${ACCENT_MAP[accent].base}-500`;
+
+        return `
+        <div id="${id}" class="task-item py-3 border-b border-gray-800 last:border-b-0">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-3 text-sm font-medium">
+                    <i data-lucide="${icon}" class="w-4 h-4 ${colors} ${status === 'IN_PROGRESS' ? 'animate-pulse' : ''}"></i>
+                    <span class="text-text-main">${name}</span>
+                </div>
+                <span class="text-xs font-mono font-semibold ${colors}">${progress}%</span>
+            </div>
+            <div class="w-full bg-gray-800 rounded-full h-2 overflow-hidden progress-bar">
+                <div class="${progressColor} h-2 rounded-full" style="width: ${progress}%"></div>
+            </div>
+        </div>`;
+    }
+
+    function Phase({ name, tasks }, accent) {
+        return `<div class="mb-6">
+            <h4 class="font-semibold text-text-muted text-sm uppercase tracking-wider mb-3">${name}</h4>
+            <div>${tasks.map(t => Task(t, accent)).join('')}</div>
+        </div>`;
+    }
+    
+    function Project({ name, accent, phases }) {
+        const { base, gradient } = ACCENT_MAP[accent];
+        
+        return `
+        <div class="bg-bg-card border border-gray-800 rounded-xl shadow-xl overflow-hidden transition duration-300 hover:shadow-2xl hover:border-${base}-500">
+            <div class="p-6 bg-gradient-to-b ${gradient} border-b border-gray-800">
+                <h3 class="text-xl font-bold text-white">${name}</h3>
+            </div>
+            <div class="p-6">
+                ${Object.values(phases).map(p => Phase(p, accent)).join('')}
+            </div>
+        </div>`;
+    }
+
+    function renderDashboard() {
+        const grid = document.getElementById('dashboard-grid');
+        if (Object.keys(MASTER_PLAN).length > 0) {
+             document.getElementById('loading-placeholder')?.remove();
+             grid.innerHTML = Object.values(MASTER_PLAN).map(Project).join('');
+        }
+        lucide.createIcons();
+    }
+
+    function updateLocalState(task) {
+        for (const project of Object.values(MASTER_PLAN)) {
+            for (const phase of Object.values(project.phases)) {
+                const index = phase.tasks.findIndex(t => t.id === task.id);
+                if (index !== -1) {
+                    phase.tasks[index] = task;
+                    return project.accent;
+                }
+            }
+        }
+        return null;
+    }
+
+    function handleTaskUpdate(task) {
+        const accent = updateLocalState(task);
+        if (!accent) return;
+
+        const el = document.getElementById(task.id);
+        if (!el) { renderDashboard(); return; }
+
+        const newHTML = Task(task, accent);
+        const template = document.createElement('template');
+        template.innerHTML = newHTML.trim();
+        const newNode = template.content.firstChild;
+
+        el.replaceWith(newNode);
+        lucide.createIcons({ nodes: [newNode.querySelector('i')] });
+    }
+
+    function updateConnectionStatus(isConnected, error = null) {
+        const statusEl = document.getElementById('connection-status');
+        if (isConnected) {
+            statusEl.className = 'flex items-center gap-3 px-4 py-2 rounded-lg bg-green-900/50 text-green-400 text-sm font-medium shadow-md border border-green-700';
+            statusEl.innerHTML = `<i data-lucide="radio" class="w-4 h-4 animate-pulse"></i><span>LIVE</span>`;
+            retryInterval = 2000;
+        } else {
+            statusEl.className = 'flex items-center gap-3 px-4 py-2 rounded-lg bg-red-900/50 text-red-400 text-sm font-medium shadow-md border border-red-700';
+            statusEl.innerHTML = `<i data-lucide="wifi-off" class="w-4 h-4"></i><span>DISCONNECTED</span>`;
+        }
+        lucide.createIcons({ nodes: [statusEl.querySelector('i')] });
+    }
+
+    let eventSource = null;
+
+    function connectToStream() {
+        if (!API_BASE_URL) {
+            showApiSettings();
+            return;
+        }
+
+        if (eventSource) { eventSource.close(); }
+        
+        console.log("Connecting to UAF v32 Command Stream...");
+        eventSource = new EventSource(`${API_BASE_URL}/v32/command/stream`);
+
+        eventSource.onopen = () => { updateConnectionStatus(true); };
+
+        eventSource.addEventListener('init', (e) => {
+            MASTER_PLAN = JSON.parse(e.data);
+            renderDashboard();
+        });
+
+        eventSource.addEventListener('task_update', (e) => {
+            const task = JSON.parse(e.data);
+            handleTaskUpdate(task);
+        });
+
+        eventSource.onerror = (err) => {
+            console.error("SSE Error:", err);
+            updateConnectionStatus(false, err);
+            eventSource.close();
+            retryInterval = Math.min(retryInterval * 1.5, 30000);
+            setTimeout(connectToStream, retryInterval);
+        };
+    }
+
+    // Initialize
+    lucide.createIcons();
+    if (API_BASE_URL) {
+        connectToStream();
+    } else {
+        showApiSettings();
+    }
+    </script>
+</body>
+</html>

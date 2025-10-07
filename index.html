@@ -401,16 +401,25 @@
         console.log("Connecting to UAF v32 Command Stream...");
         eventSource = new EventSource(`${API_BASE_URL}/v32/command/stream`);
 
-        eventSource.onopen = () => { updateConnectionStatus(true); };
+        eventSource.onopen = () => { 
+            console.log("SSE connection opened");
+            updateConnectionStatus(true); 
+        };
 
-        eventSource.addEventListener('init', (e) => {
+        eventSource.addEventListener('INITIAL_STATE', (e) => {
+            console.log("Received INITIAL_STATE");
             MASTER_PLAN = JSON.parse(e.data);
             renderDashboard();
         });
 
-        eventSource.addEventListener('task_update', (e) => {
+        eventSource.addEventListener('TASK_UPDATE', (e) => {
+            console.log("Received TASK_UPDATE");
             const task = JSON.parse(e.data);
             handleTaskUpdate(task);
+        });
+
+        eventSource.addEventListener('HEARTBEAT', (e) => {
+            console.log("Heartbeat received");
         });
 
         eventSource.onerror = (err) => {
@@ -418,14 +427,36 @@
             updateConnectionStatus(false, err);
             eventSource.close();
             retryInterval = Math.min(retryInterval * 1.5, 30000);
+            console.log(`Reconnecting in ${retryInterval}ms...`);
             setTimeout(connectToStream, retryInterval);
         };
+    }
+
+    // Fallback: Poll for state updates if SSE fails
+    let pollInterval = null;
+    
+    async function pollState() {
+        if (!API_BASE_URL) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/v32/command/state`);
+            const state = await response.json();
+            
+            if (Object.keys(MASTER_PLAN).length === 0) {
+                MASTER_PLAN = state;
+                renderDashboard();
+            }
+        } catch (error) {
+            console.error("Polling error:", error);
+        }
     }
 
     // Initialize
     lucide.createIcons();
     if (API_BASE_URL) {
         connectToStream();
+        // Start polling as fallback
+        pollInterval = setInterval(pollState, 5000);
     } else {
         showApiSettings();
     }
